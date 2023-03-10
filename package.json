@@ -28,6 +28,7 @@
         "@fortawesome/fontawesome-free": "^5.14.0",
         "@ttskch/select2-bootstrap4-theme": "^1.4.0",
         "jquery.easing": "^1.4.1",
+        "js-cookie": "^3.0.1",
         "react-dropzone": "^11.5.1",
         "react-tagsinput": "^3.19.0",
         "select2": "^4.0.13",

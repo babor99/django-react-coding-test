@@ -17,5 +17,7 @@ urlpatterns = [
     path('createorupdate/<str:pk>', CreateProductView.as_view(), name='create.product'), # for rendering the create-update product page
     # API VIEW'S URLS
     path('api/v1/product/<int:pk>', GetUpdateProductAPIView.as_view()),
+    path('api/v1/product/create/', CreateProductAPIView.as_view()),
+    path('api/v1/productimage/<int:pk>', ProductImageAPIView.as_view()),
 
 ]

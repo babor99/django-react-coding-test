@@ -122,14 +122,187 @@ class GetUpdateProductAPIView(APIView):
         return Response({'product': product_serializer.data, 'productimages': productimage_serializer.data, 'productvariants': productvariants, 'productvariant_prices': productvariant_prices}, status=status.HTTP_200_OK)
 
 
+    def put(self, request, pk, format=None):
+        data = request.data
+        product_dict = {}
+        images = []
+        productvariants = []
+        productvariant_prices = []
+        print('data: ', data)
+        print('len data: ', len(data))
+
+        # product_dict['id'] = data.get('id', 0)
+        product_dict['title'] = data.get('title', '')
+        product_dict['sku'] = data.get('sku', '')
+        product_dict['description'] = data.get('description', '')
+
+        for key, value in data.items():
+            if key.startswith('image'):
+                images.append(value)
+
+        for i in range(len(data) // 3):
+            if data.get(f'productVariantPrices[{i}][title]'):
+                productvariant_prices.append({'title': data.get(f'productVariantPrices[{i}][title]'), 'price': data.get(f'productVariantPrices[{i}][price]'), 'stock': data.get(f'productVariantPrices[{i}][stock]')}) 
+            if data.get(f'productVariants[{i}][variant]'):
+                productVariant = {'variant': data.get(f'productVariants[{i}][variant]'), 'tags': []}
+                j = 0
+                while j >= 0:
+                    productVariant['tags'].append(data.get(f'productVariants[{i}][tags][{j}]'))
+                    if data.get(f'productVariants[{i}][tags][{j+1}]'):
+                        j += 1
+                    else:
+                        j = -1
+                productvariants.append(productVariant)
+
+        print('images: ',  images)
+        print('productVariants: ', productvariants)
+        print('productVariantPrices: ', productvariant_prices)
+
+        product_obj = self.get_object(pk)
+        # update basic product data
+        serializer = ProductSerializer(product_obj, data=product_dict)
+        if serializer.is_valid():
+            serializer.save()
+            # create new images
+            for image in images:
+                ProductImage.objects.create(product=product_obj, image=image)
+            # create or update product variant prices
+            for variant_price in productvariant_prices:
+                variant_titles = variant_price['title'].split('/')
+                productvariant_one = None
+                productvariant_two = None
+                productvariant_three = None
+                productvariant_list = []
+                for i, variant_title in enumerate(variant_titles):
+                    if variant_title:
+                        variant_id = None
+                        #get variant_id from variant obj whose tags include the current variant_title
+                        for productvariant in productvariants:
+                            if variant_title in productvariant['tags']:
+                                variant_id = productvariant['variant']
+                        if variant_id:
+                            print(f"i={i}, product={product_obj.id}, variant_id={variant_id}, variant_title={variant_title}")
+                            if i == 0:
+                                productvariant_one, one_created = ProductVariant.objects.get_or_create(product=product_obj, variant_id=variant_id, variant_title=variant_title)
+                                productvariant_list.append(productvariant_one.variant_title)
+                                # productvariant_list.append(productvariant_one)
+                            if i == 1:
+                                productvariant_two, two_created = ProductVariant.objects.get_or_create(product=product_obj, variant_id=variant_id, variant_title=variant_title)
+                                productvariant_list.append(productvariant_two.variant_title)
+                                # productvariant_list.append(productvariant_two)
+                            if i == 2:
+                                productvariant_three, three_created = ProductVariant.objects.get_or_create(product=product_obj, variant_id=variant_id, variant_title=variant_title)
+                                productvariant_list.append(productvariant_three.variant_title)
+                                # productvariant_list.append(productvariant_three)
+
+                try:
+                    productvariantprice_obj = ProductVariantPrice.objects.get(
+                        product=product_obj,
+                        product_variant_one__variant_title__in=productvariant_list,
+                        product_variant_two__variant_title__in=productvariant_list,
+                        product_variant_three__variant_title__in=productvariant_list,
+                    )
+                    productvariantprice_obj.price = variant_price['price']
+                    productvariantprice_obj.stock = variant_price['stock']
+                    productvariantprice_obj.save()
+                    print('productvariant_list: ', productvariant_list)
+                    print('productvariantprice_obj: ', productvariantprice_obj)
+                except ProductVariantPrice.DoesNotExist:
+                    ProductVariantPrice.objects.create(
+                        product=product_obj,
+                        product_variant_one=productvariant_one,
+                        product_variant_two=productvariant_two,
+                        product_variant_three=productvariant_three,
+                        price=variant_price['price'],
+                        stock=variant_price['stock'],
+                    )
+        else:
+            return Response({'error': serializer.errors, 'message': "Can't update data."}, status=status.HTTP_200_OK)
+        return Response({'message': "Product updated successfully."}, status=status.HTTP_200_OK)
+
+
 
 
 class CreateProductAPIView(APIView):
-    pass
+
+    def post(self, request, format=None):
+        data = request.data
+        images = []
+        productvariants = []
+        productvariant_prices = []
+        print('data: ', data)
+        print('len data: ', len(data))
+
+        for key, value in data.items():
+            if key.startswith('image'):
+                images.append(value)
+
+        for i in range(len(data) // 3):
+            if data.get(f'productVariantPrices[{i}][title]'):
+                productvariant_prices.append({'title': data.get(f'productVariantPrices[{i}][title]'), 'price': data.get(f'productVariantPrices[{i}][price]'), 'stock': data.get(f'productVariantPrices[{i}][stock]')}) 
+            if data.get(f'productVariants[{i}][variant]'):
+                productVariant = {'variant': data.get(f'productVariants[{i}][variant]'), 'tags': []}
+                j = 0
+                while j >= 0:
+                    productVariant['tags'].append(data.get(f'productVariants[{i}][tags][{j}]'))
+                    if data.get(f'productVariants[{i}][tags][{j+1}]'):
+                        j += 1
+                    else:
+                        j = -10
+                productvariants.append(productVariant)
+        
+        print('images: ',  images)
+        print('productVariants: ', productvariants)
+        print('productVariantPrices: ', productvariant_prices)
+
+        serializer = ProductSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+
+            product_id = serializer.data['id']
+            product_obj = Product.objects.get(id=product_id)
+
+            for image in images:
+                ProductImage.objects.create(product=product_obj, image=image)
+
+            for productvariant_price in productvariant_prices:
+                productvariant_price_obj = ProductVariantPrice.objects.create(product=product_obj,price=productvariant_price['price'], stock=productvariant_price['stock'])
+                productvariant_obj_list = []
+                for tag in productvariant_price['title'].split('/'):
+                    variant_id = get_variant_id(productvariants, tag)
+                    print('variant_id: ', variant_id)
+                    if variant_id:
+                        variant_obj = Variant.objects.get(pk=variant_id)
+                        productvariant_obj, created = ProductVariant.objects.get_or_create(product=product_obj, variant=variant_obj, variant_title=tag)
+                        productvariant_obj_list.append(productvariant_obj)
+                productvariant_obj_list_len = len(productvariant_obj_list)
+                if productvariant_obj_list_len == 3:
+                    productvariant_price_obj.product_variant_one = productvariant_obj_list[0]
+                    productvariant_price_obj.product_variant_two = productvariant_obj_list[1]
+                    productvariant_price_obj.product_variant_three = productvariant_obj_list[2]
+                elif productvariant_obj_list_len == 2:
+                    productvariant_price_obj.product_variant_one = productvariant_obj_list[0]
+                    productvariant_price_obj.product_variant_two = productvariant_obj_list[1]
+                elif productvariant_obj_list_len == 1:
+                    productvariant_price_obj.product_variant_one = productvariant_obj_list[0]
+                productvariant_price_obj.save()
+
+            print('product_obj: ', product_obj)
+
+            return Response({'data': serializer.data, 'message': 'Product created successfully!'}, status=status.HTTP_201_CREATED)
+        else:
+            return Response({'error': serializer.errors, 'message': 'Product creation failed!'}, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 
 class ProductImageAPIView(APIView):
-    pass
 
+    def delete(self, request, pk, format=None):
+        try:
+            productimage = ProductImage.objects.get(pk=pk)
+            productimage.delete()
+        except ProductImage.DoesNotExist:
+            return Response({'error': "Product image doesn't exist"}, status=status.HTTP_400_BAD_REQUEST)
 
+        return Response({'message': "Product image deleted successfully"}, status=status.HTTP_200_OK)
