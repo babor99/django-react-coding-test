@@ -24,7 +24,7 @@ SECRET_KEY = 'django-insecure-x2@^g(at5$x^ovkf!3fna_z6%pn7^76h&khzm5o3%sskw-_i6a
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 # Application definition
 
@@ -74,8 +74,16 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
 
+# DB_ENGINE=postgresql_psycopg2
+# DB_NAME=mediusware
+# DB_USER=mediusware
+# DB_PASSWORD=mediusware
+# DB_HOST=localhost
+# DB_PORT=5432
+
 DATABASES = {
     'default': {
+        #***I'M USING POSTGRES DATABASE***
         'ENGINE': f'django.db.backends.{os.getenv("DB_ENGINE", "sqlite3")}',
         'NAME': os.getenv('DB_NAME', 'django_test'),
         'USER': os.getenv('DB_USER', 'root'),
@@ -108,7 +116,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Dhaka'
 
 USE_I18N = True
 
@@ -124,6 +132,8 @@ STATICFILES_DIRS = [
     BASE_DIR / 'static'
 ]
 
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media') # media files upload directory
+
 MEDIA_URL = '/media/'
 
 # Default primary key field type
@@ -132,3 +142,13 @@ MEDIA_URL = '/media/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 LOGIN_REDIRECT_URL = '/dashboard'
+
+
+REST_FRAMEWORK = {
+  'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.MultiPartParser',
+        'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.FormParser',
+    ],
+}
+

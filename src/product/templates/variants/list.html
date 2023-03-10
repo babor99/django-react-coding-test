@@ -28,12 +28,14 @@
                         <th>#</th>
                         <th>Title</th>
                         <th>Description</th>
-                        <th>Action</th>
+                        <th>Active</th>
+                        <th>Actions</th>
                     </tr>
                     </thead>
                     <tbody>
                     {% for variant in variant_list %}
                         <tr>
+                            <td>{{ forloop.counter }}</td>
                             <td>{{ variant.title }}</td>
                             <td>{{ variant.description }}</td>
                             <td>{{ variant.active }}</td>
