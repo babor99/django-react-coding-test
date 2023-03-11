@@ -70,9 +70,6 @@ const CreateProduct = (props) => {
         }
     }, [productId, reRender]);
 
-    useEffect(() => {
-    }, [previewImages, productVariants, productVariantPrices]);
-
 
     const handleProductFieldsChange = (e) => {
         setProduct({
@@ -84,19 +81,19 @@ const CreateProduct = (props) => {
     const handlePriceChange = (e, index) => {
         const updatedProductVariantPrices = [...productVariantPrices];
         updatedProductVariantPrices[index] = {
-          ...updatedProductVariantPrices[index],
-          price: e.target.value
+            ...updatedProductVariantPrices[index],
+            price: e.target.value
         };
         setProductVariantPrices(updatedProductVariantPrices);
-      }
-      
+    }
+
     const handleStockChange = (e, index) => {
-    const updatedProductVariantPrices = [...productVariantPrices];
-    updatedProductVariantPrices[index] = {
-        ...updatedProductVariantPrices[index],
-        stock: e.target.value
-    };
-    setProductVariantPrices(updatedProductVariantPrices);
+        const updatedProductVariantPrices = [...productVariantPrices];
+        updatedProductVariantPrices[index] = {
+            ...updatedProductVariantPrices[index],
+            stock: e.target.value
+        };
+        setProductVariantPrices(updatedProductVariantPrices);
     }
 
 
@@ -116,7 +113,7 @@ const CreateProduct = (props) => {
     const handleInputTagOnChange = (value, index) => {
         let product_variants = [...productVariants]
         product_variants[index].tags = value
-        if(product_variants[index].tags.length === 0){
+        if (product_variants[index].tags.length === 0) {
             product_variants.splice(index, 1);
         }
         setProductVariants(product_variants)
@@ -187,8 +184,8 @@ const CreateProduct = (props) => {
         // TODO : write your code here to save the product
         if (product.title !== "" && product.sku !== "" && product.description !== "") {
             const filteredImages = []
-            if(images.length > 0){
-                images.forEach((imageObj)=>{
+            if (images.length > 0) {
+                images.forEach((imageObj) => {
                     filteredImages.push(imageObj.image)
                 })
             }
@@ -246,9 +243,9 @@ const CreateProduct = (props) => {
         // TODO : write your code here to save the product
         if (product.title !== "" && product.sku !== "" && product.description !== "") {
             let updateImages = []
-            if (images.length > 0){
-                images.forEach((imageObj)=>{
-                    if ((imageObj.id).toString().startsWith('lo')){
+            if (images.length > 0) {
+                images.forEach((imageObj) => {
+                    if ((imageObj.id).toString().startsWith('lo')) {
                         updateImages.push(imageObj.image);
                     }
                 })
@@ -329,11 +326,11 @@ const CreateProduct = (props) => {
                 }
             }
         } else {
-            const filteredNewImages = images.filter((image)=> image.id !== productImageId);
-            const filterePreviewImages = previewImages.filter((image)=> image.id !== productImageId);
+            const filteredNewImages = images.filter((image) => image.id !== productImageId);
+            const filterePreviewImages = previewImages.filter((image) => image.id !== productImageId);
             setImages([...filteredNewImages]);
             setPreviewImages([...filterePreviewImages]);
-            
+
             alert(`Image with id ${productImageId} removed successfully!`);
         }
     }
@@ -367,20 +364,21 @@ const CreateProduct = (props) => {
                                 <h6 className="m-0 font-weight-bold text-primary">Media</h6>
                             </div>
                             <div className="card-body border">
-                                <Dropzone onDrop={acceptedFiles => {
-                                    console.log('acceptedFiles: ', acceptedFiles)
-                                    if (acceptedFiles.length > 0) {
-                                        let uploadableImages = []
-                                        let newPreviewImages = []
-                                        acceptedFiles.forEach((file, index) => {
-                                            console.log('file: ', file);
-                                            uploadableImages.push({ id: `local${index + 1}`, image: file });
-                                            newPreviewImages.push({ id: `local${index + 1}`, image: URL.createObjectURL(file) });
-                                        });
-                                        setImages([...images, ...uploadableImages])
-                                        setPreviewImages([...previewImages, ...newPreviewImages]);
-                                    };
-                                }}>
+                                <Dropzone
+                                    onDrop={acceptedFiles => {
+                                        console.log('acceptedFiles: ', acceptedFiles)
+                                        if (acceptedFiles.length > 0) {
+                                            let uploadableImages = []
+                                            let newPreviewImages = []
+                                            acceptedFiles.forEach((file, index) => {
+                                                console.log('file: ', file);
+                                                uploadableImages.push({ id: `local${index + 1}`, image: file });
+                                                newPreviewImages.push({ id: `local${index + 1}`, file_path: URL.createObjectURL(file) });
+                                            });
+                                            setImages([...images, ...uploadableImages])
+                                            setPreviewImages([...previewImages, ...newPreviewImages]);
+                                        };
+                                    }}>
                                     {({ getRootProps, getInputProps }) => (
                                         <section>
                                             <div {...getRootProps()} className="h-25vh w-40vw card-body border d-flex justify-content-center align-items-center">
@@ -412,7 +410,7 @@ const CreateProduct = (props) => {
                                                                 }}
                                                             />
                                                             <img
-                                                                src={imageItem.image}
+                                                                src={imageItem.file_path}
                                                                 className="m-1"
                                                                 width={100}
                                                                 height={100}
@@ -508,7 +506,7 @@ const CreateProduct = (props) => {
                                                             <td>{productVariantPrice.title}</td>
                                                             <td>
                                                                 <input
-                                                                    className="form-control" 
+                                                                    className="form-control"
                                                                     type="number"
                                                                     name="price"
                                                                     value={productVariantPrice.price}
@@ -517,7 +515,7 @@ const CreateProduct = (props) => {
                                                                         console.log(`price${index}: ${e.target.value}`);
                                                                         // productVariantPrices[index].price = e.target.value;
                                                                     }}
-                                                                    />
+                                                                />
                                                             </td>
                                                             <td>
                                                                 <input

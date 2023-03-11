@@ -10,7 +10,7 @@ from rest_framework import status
 
 from product.models import Product, Variant, ProductVariant, ProductVariantPrice, ProductImage
 from product.serializers import ProductSerializer, ProductImageSerializer
-from product.utils import get_variant_id, paginate_data
+from product.utils import get_variant_id, save_productimage, parse_request_data
 
 
 
@@ -18,7 +18,7 @@ from product.utils import get_variant_id, paginate_data
 class ListProductView(generic.ListView):
     template_name = 'products/list.html'
     model = Product
-    paginate_by = 3
+    paginate_by = 5
 
     def get_queryset(self):
         print('self.request.GET: ', self.request.GET)
@@ -116,7 +116,7 @@ class GetUpdateProductAPIView(APIView):
         productvariants = ProductVariant.objects.filter(product=product_obj).values('variant').annotate(tags=ArrayAgg(F('variant_title'), distinct=True))
         # print('productvariants: ', productvariants)
 
-        productvariant_prices = ProductVariantPrice.objects.filter(product=product_obj).annotate(title=Concat('product_variant_one__variant_title', Value('/'), 'product_variant_two__variant_title', Value('/'), 'product_variant_three__variant_title', Value('/'), output_field=CharField())).values('id', 'title', 'price', 'stock')
+        productvariant_prices = ProductVariantPrice.objects.order_by('id').filter(product=product_obj).annotate(title=Concat('product_variant_one__variant_title', Value('/'), 'product_variant_two__variant_title', Value('/'), 'product_variant_three__variant_title', Value('/'), output_field=CharField())).values('id', 'title', 'price', 'stock')
         print('productvariant_prices: ', productvariant_prices)
 
         return Response({'product': product_serializer.data, 'productimages': productimage_serializer.data, 'productvariants': productvariants, 'productvariant_prices': productvariant_prices}, status=status.HTTP_200_OK)
@@ -131,83 +131,68 @@ class GetUpdateProductAPIView(APIView):
         print('data: ', data)
         print('len data: ', len(data))
 
-        # product_dict['id'] = data.get('id', 0)
         product_dict['title'] = data.get('title', '')
         product_dict['sku'] = data.get('sku', '')
         product_dict['description'] = data.get('description', '')
 
-        for key, value in data.items():
-            if key.startswith('image'):
-                images.append(value)
-
-        for i in range(len(data) // 3):
-            if data.get(f'productVariantPrices[{i}][title]'):
-                productvariant_prices.append({'title': data.get(f'productVariantPrices[{i}][title]'), 'price': data.get(f'productVariantPrices[{i}][price]'), 'stock': data.get(f'productVariantPrices[{i}][stock]')}) 
-            if data.get(f'productVariants[{i}][variant]'):
-                productVariant = {'variant': data.get(f'productVariants[{i}][variant]'), 'tags': []}
-                j = 0
-                while j >= 0:
-                    productVariant['tags'].append(data.get(f'productVariants[{i}][tags][{j}]'))
-                    if data.get(f'productVariants[{i}][tags][{j+1}]'):
-                        j += 1
-                    else:
-                        j = -1
-                productvariants.append(productVariant)
+        images, productvariants, productvariant_prices = parse_request_data(data)
 
         print('images: ',  images)
         print('productVariants: ', productvariants)
         print('productVariantPrices: ', productvariant_prices)
 
         product_obj = self.get_object(pk)
+
         # update basic product data
         serializer = ProductSerializer(product_obj, data=product_dict)
         if serializer.is_valid():
             serializer.save()
+
             # create new images
             for image in images:
-                ProductImage.objects.create(product=product_obj, image=image)
+                product_image = ProductImage.objects.create(product=product_obj, file_path='')
+                save_productimage(product_image, image)
+
             # create or update product variant prices
             for variant_price in productvariant_prices:
                 variant_titles = variant_price['title'].split('/')
-                productvariant_one = None
-                productvariant_two = None
-                productvariant_three = None
+                productvariant_one, one_created = None, False
+                productvariant_two, two_created = None, False
+                productvariant_three, three_created = None, False
                 productvariant_list = []
+                created_list = []
                 for i, variant_title in enumerate(variant_titles):
                     if variant_title:
                         variant_id = None
+
                         #get variant_id from variant obj whose tags include the current variant_title
                         for productvariant in productvariants:
                             if variant_title in productvariant['tags']:
                                 variant_id = productvariant['variant']
+
+                        # if variant_id exist, then get the ProductVariant object
                         if variant_id:
                             print(f"i={i}, product={product_obj.id}, variant_id={variant_id}, variant_title={variant_title}")
                             if i == 0:
                                 productvariant_one, one_created = ProductVariant.objects.get_or_create(product=product_obj, variant_id=variant_id, variant_title=variant_title)
                                 productvariant_list.append(productvariant_one.variant_title)
-                                # productvariant_list.append(productvariant_one)
+                                if one_created:
+                                    created_list.append('one')
                             if i == 1:
                                 productvariant_two, two_created = ProductVariant.objects.get_or_create(product=product_obj, variant_id=variant_id, variant_title=variant_title)
                                 productvariant_list.append(productvariant_two.variant_title)
-                                # productvariant_list.append(productvariant_two)
+                                if two_created:
+                                    created_list.append('two')
                             if i == 2:
                                 productvariant_three, three_created = ProductVariant.objects.get_or_create(product=product_obj, variant_id=variant_id, variant_title=variant_title)
                                 productvariant_list.append(productvariant_three.variant_title)
-                                # productvariant_list.append(productvariant_three)
+                                if three_created:
+                                    created_list.append('three')
 
-                try:
-                    productvariantprice_obj = ProductVariantPrice.objects.get(
-                        product=product_obj,
-                        product_variant_one__variant_title__in=productvariant_list,
-                        product_variant_two__variant_title__in=productvariant_list,
-                        product_variant_three__variant_title__in=productvariant_list,
-                    )
-                    productvariantprice_obj.price = variant_price['price']
-                    productvariantprice_obj.stock = variant_price['stock']
-                    productvariantprice_obj.save()
-                    print('productvariant_list: ', productvariant_list)
-                    print('productvariantprice_obj: ', productvariantprice_obj)
-                except ProductVariantPrice.DoesNotExist:
+                print('productvariant_list: ', productvariant_list)
+                productvariantprice_obj = None
+                if 'one' in created_list and 'two' in created_list and 'three' in created_list:
+                    print('inside one two three created')
                     ProductVariantPrice.objects.create(
                         product=product_obj,
                         product_variant_one=productvariant_one,
@@ -216,8 +201,146 @@ class GetUpdateProductAPIView(APIView):
                         price=variant_price['price'],
                         stock=variant_price['stock'],
                     )
+                elif 'one' in created_list and 'two' in created_list:
+                    print('inside one two created')
+                    ProductVariantPrice.objects.create(
+                        product=product_obj,
+                        product_variant_one=productvariant_one,
+                        product_variant_two=productvariant_two,
+                        price=variant_price['price'],
+                        stock=variant_price['stock'],
+                    )
+                elif 'one' in created_list:
+                    print('inside one created')
+                    ProductVariantPrice.objects.create(
+                        product=product_obj,
+                        product_variant_one=productvariant_one,
+                        price=variant_price['price'],
+                        stock=variant_price['stock'],
+                    )
+                elif 'two' in created_list and 'three' in created_list:
+                    print('inside two three created')
+                    productvariantprice_obj = ProductVariantPrice.objects.filter(
+                        product=product_obj,
+                        product_variant_one__variant_title__in=productvariant_list,
+                    ).first()
+                    productvariantprice_obj.product_variant_two = productvariant_two
+                    productvariantprice_obj.product_variant_three = productvariant_three
+                elif 'two' in created_list:
+                    print('inside two created')
+                    productvariantprice_obj = ProductVariantPrice.objects.filter(
+                        product=product_obj,
+                        product_variant_one__variant_title__in=productvariant_list,
+                    ).first()
+                    productvariantprice_obj.product_variant_two = productvariant_two
+                    productvariantprice_obj.product_variant_three = productvariant_three
+                elif 'three' in created_list:
+                    print('inside three created')
+                    productvariantprice_obj = ProductVariantPrice.objects.filter(
+                        product=product_obj,
+                        product_variant_one__variant_title__in=productvariant_list,
+                        product_variant_two__variant_title__in=productvariant_list,
+                    ).first()
+                    productvariantprice_obj.product_variant_three = productvariant_three
+
+                else:
+                    print('inside 0 created')
+                    print('created_list: ', created_list)
+                    if productvariant_one and productvariant_two and productvariant_three:
+                        print('inside one two three retrieved')
+                        try:
+                            print('inside first try!')
+                            productvariantprice_obj = ProductVariantPrice.objects.get(
+                                product=product_obj,
+                                product_variant_one__variant_title__in=productvariant_list,
+                                product_variant_two__variant_title__in=productvariant_list,
+                                product_variant_three__variant_title__in=productvariant_list,
+                            )
+                            print('inside first try executed!')
+                        except ProductVariantPrice.DoesNotExist:
+                            print('inside first try does not exist!')
+                            try:
+                                print('inside second try get!!')
+                                productvariantprice_obj = ProductVariantPrice.objects.get(
+                                    product=product_obj,
+                                    product_variant_one__variant_title__in=productvariant_list,
+                                    product_variant_two__variant_title__in=productvariant_list,
+                                )
+                                productvariantprice_obj.product_variant_three = productvariant_three
+                                print('inside second try get executed!!')
+                            except ProductVariantPrice.MultipleObjectsReturned:
+                                print('inside second try  multiple objects returned!!!')
+                                ProductVariantPrice.objects.create(
+                                    product=product_obj,
+                                    product_variant_one=productvariant_one,
+                                    product_variant_two=productvariant_two,
+                                    product_variant_three=productvariant_three,
+                                    price=variant_price['price'],
+                                    stock=variant_price['stock'],
+                                )
+                            except ProductVariantPrice.DoesNotExist:
+                                print('inside second try  multiple objects returned!!!')
+                                ProductVariantPrice.objects.create(
+                                    product=product_obj,
+                                    product_variant_one=productvariant_one,
+                                    product_variant_two=productvariant_two,
+                                    product_variant_three=productvariant_three,
+                                    price=variant_price['price'],
+                                    stock=variant_price['stock'],
+                                )
+                                print('inside second try  multiple objects returned executed!!!')
+
+                        print('inside one two three retrieved executed')
+                    elif productvariant_one and productvariant_two:
+                        print('inside one two retrieved')
+                        try:
+                            productvariantprice_obj = ProductVariantPrice.objects.get(
+                                product=product_obj,
+                                product_variant_one__variant_title__in=productvariant_list,
+                                product_variant_two__variant_title__in=productvariant_list,
+                            )
+                        except ProductVariantPrice.DoesNotExist:
+                            try:
+                                productvariantprice_obj = ProductVariantPrice.objects.get(
+                                    product=product_obj,
+                                    product_variant_one__variant_title__in=productvariant_list,
+                                )
+                                productvariantprice_obj.product_variant_two = productvariant_two
+                            except ProductVariantPrice.MultipleObjectsReturned:
+                                ProductVariantPrice.objects.create(
+                                    product=product_obj,
+                                    product_variant_one=productvariant_one,
+                                    product_variant_two=productvariant_two,
+                                    price=variant_price['price'],
+                                    stock=variant_price['stock'],
+                                )
+                        print('inside one two retrieved executed')
+                    elif productvariant_one:
+                        print('inside one retrieved')
+                        try:
+                            productvariantprice_obj = ProductVariantPrice.objects.get(
+                                product=product_obj,
+                                product_variant_one__variant_title__in=productvariant_list,
+                            )
+                        except ProductVariantPrice.DoesNotExist:
+                            ProductVariantPrice.objects.create(
+                                product=product_obj,
+                                product_variant_one=productvariant_one,
+                                price=variant_price['price'],
+                                stock=variant_price['stock'],
+                            )
+                        print('inside one retrieved executed')
+
+                print('created_list: ', created_list)
+                if productvariantprice_obj:
+                    productvariantprice_obj.price = variant_price['price']
+                    productvariantprice_obj.stock = variant_price['stock']
+                    productvariantprice_obj.save()
+
+                print('productvariantlist: ', productvariant_list)
+                print('productvariantprice_obj: ', productvariantprice_obj)
         else:
-            return Response({'error': serializer.errors, 'message': "Can't update data."}, status=status.HTTP_200_OK)
+            return Response({'error': serializer.errors, 'message': "Can't update data."}, status=status.HTTP_400_BAD_REQUEST)
         return Response({'message': "Product updated successfully."}, status=status.HTTP_200_OK)
 
 
@@ -233,24 +356,8 @@ class CreateProductAPIView(APIView):
         print('data: ', data)
         print('len data: ', len(data))
 
-        for key, value in data.items():
-            if key.startswith('image'):
-                images.append(value)
+        images, productvariants, productvariant_prices = parse_request_data(data)
 
-        for i in range(len(data) // 3):
-            if data.get(f'productVariantPrices[{i}][title]'):
-                productvariant_prices.append({'title': data.get(f'productVariantPrices[{i}][title]'), 'price': data.get(f'productVariantPrices[{i}][price]'), 'stock': data.get(f'productVariantPrices[{i}][stock]')}) 
-            if data.get(f'productVariants[{i}][variant]'):
-                productVariant = {'variant': data.get(f'productVariants[{i}][variant]'), 'tags': []}
-                j = 0
-                while j >= 0:
-                    productVariant['tags'].append(data.get(f'productVariants[{i}][tags][{j}]'))
-                    if data.get(f'productVariants[{i}][tags][{j+1}]'):
-                        j += 1
-                    else:
-                        j = -10
-                productvariants.append(productVariant)
-        
         print('images: ',  images)
         print('productVariants: ', productvariants)
         print('productVariantPrices: ', productvariant_prices)
@@ -263,7 +370,8 @@ class CreateProductAPIView(APIView):
             product_obj = Product.objects.get(id=product_id)
 
             for image in images:
-                ProductImage.objects.create(product=product_obj, image=image)
+                product_image = ProductImage.objects.create(product=product_obj, file_path='')
+                save_productimage(product_image, image)
 
             for productvariant_price in productvariant_prices:
                 productvariant_price_obj = ProductVariantPrice.objects.create(product=product_obj,price=productvariant_price['price'], stock=productvariant_price['stock'])
@@ -271,11 +379,14 @@ class CreateProductAPIView(APIView):
                 for tag in productvariant_price['title'].split('/'):
                     variant_id = get_variant_id(productvariants, tag)
                     print('variant_id: ', variant_id)
+
                     if variant_id:
                         variant_obj = Variant.objects.get(pk=variant_id)
                         productvariant_obj, created = ProductVariant.objects.get_or_create(product=product_obj, variant=variant_obj, variant_title=tag)
                         productvariant_obj_list.append(productvariant_obj)
+
                 productvariant_obj_list_len = len(productvariant_obj_list)
+
                 if productvariant_obj_list_len == 3:
                     productvariant_price_obj.product_variant_one = productvariant_obj_list[0]
                     productvariant_price_obj.product_variant_two = productvariant_obj_list[1]

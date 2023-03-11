@@ -1,4 +1,6 @@
 from django.db import models
+from django.core.files.storage import FileSystemStorage
+
 from config.g_model import TimeStampMixin
 
 
@@ -21,9 +23,21 @@ class Product(TimeStampMixin):
 
 class ProductImage(TimeStampMixin):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    image = models.ImageField(upload_to='productImages/')
+    file_path = models.URLField()
+
     def __str__(self) -> str:
         return f"<ProductImage{self.id}: {self.product.title[:10]}>"
+
+    def delete(self, *args, **kwargs):
+        # Get the file path from the file URL
+        storage = FileSystemStorage()
+        file_path = storage.path(self.file_path.replace(storage.base_url, ''))
+
+        # Delete the file from the server
+        storage.delete(file_path)
+
+        # Call the superclass delete method to delete the object
+        super(ProductImage, self).delete(*args, **kwargs)
 
 
 class ProductVariant(TimeStampMixin):

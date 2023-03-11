@@ -16,9 +16,9 @@
                 <input type="text" name="title" placeholder="Product Title" class="form-control">
             </div>
             <div class="col-md-2">
-                <select name="variant" class="chosen-select form-control" style="min-height: 100px;"
-                data-placeholder="Choose a variant" data-search-enabled="true">
+                <select name="variant" class="chosen-select form-control" data-placeholder="Choose a variant" data-search-enabled="true">
 
+                    <option selected disabled value="">Select variant</option>
                     {% for group in productvariants %}
                     <optgroup label="{{ group.label }}">
                         {% for option in group.options %}
