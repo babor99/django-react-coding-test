@@ -83,7 +83,8 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 DATABASES = {
     'default': {
-        #***I'M USING POSTGRES DATABASE***
+        """I'M USING POSTGRES DATABASE. PLEASE USE POSTGRESQL DATABASE.
+        OTHERWISE MY PRODUCT-VARIANT AND PRODUCT-VARIANT-PRICE WON'T WORK PROPERLY"""
         'ENGINE': f'django.db.backends.{os.getenv("DB_ENGINE", "sqlite3")}',
         'NAME': os.getenv('DB_NAME', 'django_test'),
         'USER': os.getenv('DB_USER', 'root'),
